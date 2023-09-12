@@ -24,6 +24,11 @@ switch uPr
         L = mp(L);
         U = mp(U);
         P = mp(P);
+    case 'mp2'
+        x = mp(x,2);
+        L = mp(L,2);
+        U = mp(U,2);
+        P = mp(P,2);
 end
 
 switch uPr
@@ -39,7 +44,7 @@ switch uPr
             UinvLinvx = trisol(double(U),Linvx);
         end
         
-    case {'single','double','quad','exact'}
+    case {'single','double','quad','exact','mp2'}
         if ~norm(eye(n) - L)
             Linvx = x;
         else

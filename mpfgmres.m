@@ -1,5 +1,5 @@
 function [x,resnorm,relres,iter,flag, V, Z, y, Zkykabs, uApsiA, uLpsiL, normxk,....
-    err_Pr, err_Pl, nZkVpinvPr] = ...
+    err_Pr, err_Pl, nZkVpinvPr, BE] = ...
     mpfgmres(A,b,x0,tol,maxit,restart,Pright,Pleft,u,uA,Pright_ex,Pleft_ex,Pr_mtx)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -54,12 +54,6 @@ switch u
         relres = single(zeros(maxit*restart+1,1));
         iter = single(zeros(maxit,1));   
 
-        Z = single(zeros(n,restart));
-        V = single(zeros(n,restart+1));
-        H = single(zeros(restart+1,restart));
-
-        c = single(zeros(restart,1));
-        s = single(zeros(restart,1));
         
     case 'double'
         r = double(r);
@@ -70,18 +64,11 @@ switch u
         relres = double(zeros(maxit*restart+1,1));
         iter = double(zeros(maxit,1));      
 
-        Z = double(zeros(n,restart));
-        V = double(zeros(n,restart+1));
-        H = double(zeros(restart+1,restart));
-
-        c = double(zeros(restart,1));
-        s = double(zeros(restart,1));
             
 end
 
-Z_ex  = mp(zeros(n,restart));
-Zkykabs = mp(zeros(n,restart));
 resnorm = mp(zeros(maxit*restart+1,1));
+BE = mp(zeros(maxit*restart+1,1));
 uApsiA = mp(zeros(maxit*restart,1));
 uLpsiL = mp(zeros(maxit*restart,1));
 normxk = mp(zeros(maxit*restart,1));
@@ -89,11 +76,15 @@ err_Pr = mp(zeros(maxit*restart,1));
 
 nZkVpinvPr = mp(zeros(maxit*restart,1));
 
+nb = norm(mp(b));
+nA = norm(mp(b));
+
 
 relres(1) = beta0/beta0;
 tot_it = 0;
 
 resnorm(1) = norm(mp(b) -  mp(A)*mp(x));
+BE(1) = resnorm(1)/(nb +nA*norm(mp(x)));
 x1=x;
 
 for out_it = 1:maxit
@@ -101,11 +92,29 @@ for out_it = 1:maxit
     
     switch u 
         case 'single'
-            g = single(zeros(restart,1));
+
+            Z = single(zeros(n,restart));
+            V = single(zeros(n,restart+1));
+            H = single(zeros(restart+1,restart));
+
+            c = single(zeros(restart,1));
+            s = single(zeros(restart,1));
             
+            g = single(zeros(restart,1));
+
         case 'double'
+
+            Z = double(zeros(n,restart));
+            V = double(zeros(n,restart+1));
+            H = double(zeros(restart+1,restart));
+
+            c = double(zeros(restart,1));
+            s = double(zeros(restart,1));
+            
             g = double(zeros(restart,1));
+
     end
+
     
     % make sure that r has the right precision
     r = Pl(b,true) - Pl(Axprod(x,false),true);
@@ -114,6 +123,8 @@ for out_it = 1:maxit
     V(:,1) = r/beta;
     g(1) = beta;
 
+    Z_ex  = mp(zeros(n,restart));
+    Zkykabs = mp(zeros(n,restart));
 
     for i=1:restart
         
@@ -173,6 +184,7 @@ for out_it = 1:maxit
             x = x + Z(:,1:i)*y;
             x1=x;
             resnorm((out_it-1)*restart+i+1) = norm(mp(b) -  mp(A)*mp(x));  
+            BE((out_it-1)*restart+i+1) = resnorm((out_it-1)*restart+i+1)/(nb +nA*norm(mp(x)));
             Zkykabs(:,i) = abs(mp(Z(:,1:i)))*abs(mp(y));
             normxk((out_it-1)*restart+i) = norm(mp(x));
             flag = 0;
@@ -182,6 +194,7 @@ for out_it = 1:maxit
             y1 = H(1:i,1:i)\g(1:i);
             x1 = x1 + Z(:,1:i)*y1;
             resnorm((out_it-1)*restart+i+1) = norm(mp(b) -  mp(A)*mp(x1));  
+            BE((out_it-1)*restart+i+1) = resnorm((out_it-1)*restart+i+1)/(nb +nA*norm(mp(x)));
             Zkykabs(:,i) = abs(mp(Z(:,1:i)))*abs(mp(y1));
             normxk((out_it-1)*restart+i) = norm(mp(x));
 
@@ -189,13 +202,17 @@ for out_it = 1:maxit
         iter(out_it)  = i;
 
     end
+     
     
     if  relres((out_it-1)*restart+i+1) <= tol
-        break
+        if resnorm((out_it-1)*restart+i+1) <= tol*(norm(mp(b))+norm(mp(full(A)))*norm(mp(x)))%%checking real residual before restarting
+            break
+        end %%
     else
         y = H(1:i,1:i)\g(1:i);
         x = x + Z(:,1:i)*y;
         resnorm((out_it-1)*restart+i+1) = norm(mp(b) -  mp(A)*mp(x)); 
+        BE((out_it-1)*restart+i+1) = resnorm((out_it-1)*restart+i+1)/(nb +nA*norm(mp(x)));
         Zkykabs(:,i) = abs(mp(Z(:,1:i)))*abs(mp(y));
         normxk((out_it-1)*restart+i) = norm(mp(x));
     end
